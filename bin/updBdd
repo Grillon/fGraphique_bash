@@ -1,0 +1,66 @@
+#!/bin/sh
+if [ $# -ne 1 ];then 
+	echo "erreur merci de fournir dans l'ordre les parametres suivants :"
+	echo "$0 \"fichier à sourcer\""
+	exit 251;
+fi
+source=$1
+source $(pwd)/${source}
+iter=1
+OLDIFS=$IFS
+#chargement de l'index
+IFS=\|;
+while read ligne;
+	do set ${ligne};
+	if [ -z "${xIndex}" ];then
+		xIndex=$1;
+	else 
+		xIndex="${xIndex}|$1"
+	fi
+	done<${cIndex}
+unset tout
+#reinit MAJ
+>${fMAJ}
+echo "${D1} ${D2}"
+#OLDIFS=$IFS;IFS=|;while read ligne;do set ${ligne};x=${premier};while [ $x -lt ${dernier} ];do eval eval echo "$\{$x\}";x=$((x+1));done;done<${fichier}
+IFS=\|;while read ligne;
+	do set ${ligne};for x in ${xIndex};
+		do 
+		nbr=$x
+		if [ "${changeDate}" -eq 1 ] && [ -z "${tout}" ];then
+			date=$(eval date -d \"\$${D1} \$${D2}\" +%s)
+			tout=${date}
+		elif [ "${changeDate}" -eq 2 ] && [ -z "${tout}" ];then
+			date=$(date -d "$1" +%s)
+                        tout=${date}
+		elif [ "${changeDate}" -eq 3 ] && [ -z "${tout}" ];then
+			eval eval tout="$\{$D1\}";
+		elif [ "${changeDate}" -ge 1 ] && [ "${changeDate}" -le 3 ] && [ "${nbr}" -eq "${D1}" -o "${nbr}" -eq "${D2}" ];then
+			echo -n "."; #rien
+		elif [ -z "${tout}" ];then 
+			eval eval tout="$\{$x\}";
+		else 
+			eval eval toutout="$\{$x\}";
+			tout=${tout}:${toutout};
+		fi;
+		done;
+		if [ ${iter} -lt ${mIter} ];then
+			if [ -z "${ensemble}" ];then 
+				ensemble=${tout};
+			else
+				ensemble="${ensemble} ${tout}"
+			fi
+			iter=$((${iter}+1))
+			unset tout;
+		else
+			if [ -z ${ensemble} ];then
+                                ensemble=${tout};
+                        else
+                                ensemble="${ensemble} ${tout}"
+                        fi
+			unset tout;
+			echo rrdtool update ${bdd}.rrd ${ensemble}>>${fMAJ}
+			unset ensemble;
+			iter=1
+		fi
+	done<${fEntre}

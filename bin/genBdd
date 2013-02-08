@@ -1,0 +1,70 @@
+#!/bin/sh
+if [ $# -ne 1 ];then 
+	echo "merci d'entrer le nom du fichier de configuration à sourcer"
+	exit 251
+fi
+#je ferais un vrai script un jour mais je n'ai pas le temps alors voici qq explication sur l'utilisation de rrdtool.
+#bdd : nom de la base de donnée
+#debut : valeur de début de la base en seconde depuis 1970
+#step : le pas de la collect en seconde; exemple --step 60 : signifie, une prise toute les minutes.
+#DS:DSNAME:DST:HEARTBEAT:MIN:MAX
+#DS : DataSource; C'est une source de donnée, un champs. Par exemple le champs CPU ou le champs input d'une collecte. 
+#DSNAME: nom du champs
+#DST : type de données. Le plus simple est d'utiliser GAUGE qui laisse les valeurs tel quel. Pour le reste se referer à la DOC.
+#HEARTBEAT : temps max avant invalidation de la donnée. Exemple 60 veut dire que sans données pendant plus de 60 sec la donnée
+#est considéré invalide. si step et HEARTBEAT SONT IDENTIQUE il ne pourra y avoir aucun manque de données.
+#MIN : valeur min valide. exemple 0
+#Max : valeur max valide. exemple 100(quand il s'agit de pourcentage) les CHAMPS MAX ET MIN NE SONT PAS OBLIGATOIRE ET PEUVENT AVOIR 
+#LA VALEUR U(unknown)
+#RRA:CF:XFF:Steps:Rows
+#RRA:RoundRobinArchive
+#CF:Fonction de consolidation(AVERAGE,MIN,MAX,LAST)
+#XFF:quantité de valeur qui peuvent être erronés; par defaut 50%;J'expliquerais en detail à la fin
+#steps:quantité de données à prendre avant de les passers à la fonction et de sauvegarder une valeur.si le pas est à 60 et steps à 10;
+#l'enregistrement des valeurs dans la base se fera toute les 60*10=600secondes. Soit 10mn.
+#rows:nombre d'enregistrement.Toujours le même exemple que le precedent avec rows à 6, signifie que nous pouvons enregistrer au max : 
+#600*6=3600seconde; soit 1H
+#revenons maintenant à XFF: apr default 50% signifie que s'il manque moins de 300seconde au 600 sec necessaire à faire notre enregistrement 
+#nous pourrons enregistrer une valeur.
+#le fichier en argument est le fichier de conf à sourcer
+source=$1
+source $(pwd)/${source}
+#debut=1331683200
+OLDIFS=$IFS
+#chargement de l'index
+IFS=\|;
+while read ligne;
+        do set ${ligne};
+        if [ -z "${xIndex}" ];then
+                xIndex=$1;
+        else
+                xIndex="${xIndex}|$1"
+        fi
+        done<${cIndex}
+#si index avec heure converti retrait du premier element
+#si index avec heure non converti retrait deux elements
+#sinon rien
+if [ ${changeDate} -eq 1 ];then
+	index=${xIndex#*|*|}
+elif [ ${changeDate} -eq 2 ];then
+	index=${xIndex#*|}
+elif [ ${changeDate} -eq 3 ];then
+	index=${xIndex#*|}
+else index=${xIndex}
+fi
+echo ${index}
+echo "rrdtool create ${bdd}.rrd --start ${debut} --step ${pas} \\">${aFaire}
+for valeur in ${index};do echo "DS:${valeur}:GAUGE:3600:U:U \\">>${aFaire};done
+echo "RRA:AVERAGE:0.5:1:744      \\">>${aFaire}
+echo "RRA:AVERAGE:0.5:24:365 \\">>${aFaire}
+echo "RRA:AVERAGE:0.5:168:52 \\">>${aFaire}
+echo "RRA:MAX:0.5:1:744 \\">>${aFaire}
+echo "RRA:MAX:0.5:24:365 \\">>${aFaire}
+echo "RRA:MAX:0.5:168:52 \\">>${aFaire}
+echo "RRA:MIN:0.5:1:744 \\">>${aFaire}
+echo "RRA:MIN:0.5:24:365 \\">>${aFaire}
+echo "RRA:MIN:0.5:168:52 \\">>${aFaire}
+echo "RRA:LAST:0.5:1:744 \\">>${aFaire}
+echo "RRA:LAST:0.5:24:365 \\">>${aFaire}
+echo "RRA:LAST:0.5:168:52 ">>${aFaire}
+echo fin
